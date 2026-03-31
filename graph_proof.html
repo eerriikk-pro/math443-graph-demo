@@ -1,0 +1,678 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Graph Coloring Tool</title>
+  <style>
+    :root {
+      --bg: #f5f2ea;
+      --panel: rgba(255, 252, 245, 0.88);
+      --ink: #181513;
+      --muted: #6b625c;
+      --accent: #b5452d;
+      --shadow: rgba(24, 21, 19, 0.18);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: Georgia, "Times New Roman", serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at top, rgba(181, 69, 45, 0.12), transparent 32%),
+        linear-gradient(135deg, #f8f4ee, #efe7db 55%, #ebe1d3);
+    }
+
+    .page {
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 32px;
+    }
+
+    .frame {
+      width: min(1100px, 100%);
+      display: grid;
+      grid-template-columns: minmax(560px, 1fr) 74px;
+      gap: 14px;
+      align-items: start;
+    }
+
+    .graph-card,
+    .controls {
+      background: var(--panel);
+      border: 1px solid rgba(24, 21, 19, 0.12);
+      border-radius: 24px;
+      box-shadow: 0 24px 60px -32px var(--shadow);
+      backdrop-filter: blur(10px);
+    }
+
+    .graph-card {
+      padding: 18px;
+      position: relative;
+    }
+
+    .controls {
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .action {
+      border: 1px solid rgba(24, 21, 19, 0.16);
+      background: #fffdfa;
+      color: var(--ink);
+      border-radius: 999px;
+      padding: 9px 14px;
+      cursor: pointer;
+      transition: background 120ms ease, transform 120ms ease;
+    }
+
+    .action:hover,
+    .action:focus-visible {
+      background: #fff7ee;
+      transform: translateY(-1px);
+    }
+
+    .action:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .icon-action {
+      width: 52px;
+      height: 52px;
+      padding: 0;
+      border-radius: 16px;
+      display: grid;
+      place-items: center;
+      font-size: 1.55rem;
+      line-height: 1;
+    }
+
+    .icon-action.reset-icon {
+      font-size: 1.25rem;
+    }
+
+    .status {
+      position: absolute;
+      left: 18px;
+      bottom: 14px;
+      max-width: min(460px, calc(100% - 36px));
+      min-height: 1.4em;
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: rgba(255, 252, 245, 0.92);
+      border: 1px solid rgba(24, 21, 19, 0.08);
+      font-size: 0.84rem;
+      color: var(--accent);
+      pointer-events: none;
+    }
+
+    .status:empty {
+      display: none;
+    }
+
+    svg {
+      display: block;
+      width: 100%;
+      height: auto;
+      overflow: visible;
+    }
+
+    .edge {
+      stroke-width: 3;
+      stroke-linecap: round;
+      cursor: pointer;
+      transition: stroke 120ms ease, stroke-width 120ms ease, opacity 120ms ease, filter 120ms ease;
+    }
+
+    .edge:hover {
+      stroke-width: 5;
+      opacity: 0.92;
+    }
+
+    .edge.selected {
+      stroke-width: 5;
+    }
+
+    .edge.node-highlight {
+      stroke-width: 7;
+      opacity: 1;
+      filter: drop-shadow(0 0 6px rgba(181, 69, 45, 0.45));
+    }
+
+    .edge.node-dimmed {
+      opacity: 0.2;
+    }
+
+    .node {
+      fill: #111;
+      cursor: pointer;
+      transition: transform 120ms ease, fill 120ms ease;
+    }
+
+    .node-ring {
+      fill: rgba(255, 255, 255, 0.82);
+      cursor: pointer;
+      transition: transform 120ms ease, fill 120ms ease, stroke 120ms ease;
+    }
+
+    .node.active-node {
+      fill: var(--accent);
+    }
+
+    .node-ring.active-node {
+      fill: rgba(255, 247, 238, 0.96);
+      stroke: var(--accent);
+      stroke-width: 2;
+    }
+
+    .edge-menu {
+      position: absolute;
+      z-index: 5;
+      min-width: 180px;
+      max-width: 240px;
+      padding: 12px;
+      border-radius: 18px;
+      border: 1px solid rgba(24, 21, 19, 0.12);
+      background: rgba(255, 252, 245, 0.96);
+      box-shadow: 0 24px 60px -32px var(--shadow);
+      display: grid;
+      gap: 10px;
+    }
+
+    .edge-menu[hidden] {
+      display: none;
+    }
+
+    .edge-menu-title {
+      font-size: 0.95rem;
+      color: var(--ink);
+    }
+
+    .edge-menu-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .color-chip {
+      border: 1px solid rgba(24, 21, 19, 0.12);
+      border-radius: 999px;
+      padding: 7px 10px;
+      background: #fffdfa;
+      color: var(--ink);
+      cursor: pointer;
+    }
+
+    .color-chip:hover,
+    .color-chip:focus-visible {
+      background: #fff7ee;
+    }
+
+    .color-chip-dot {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      border-radius: 999px;
+      margin-right: 7px;
+      vertical-align: middle;
+      box-shadow: inset 0 0 0 1px rgba(24, 21, 19, 0.14);
+    }
+
+    .edge-menu-empty {
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+
+    @media (max-width: 700px) {
+      .frame {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <section class="frame">
+      <div class="graph-card">
+        <svg id="graph" viewBox="-440 -340 880 680" aria-labelledby="title desc" role="img">
+          <title id="title">Interactive graph for edge coloring</title>
+          <desc id="desc">Click an edge to open a menu of available colors.</desc>
+        </svg>
+        <div id="edge-menu" class="edge-menu" hidden></div>
+        <div id="status" class="status" aria-live="polite"></div>
+      </div>
+
+      <aside class="controls" aria-label="Graph controls">
+        <button id="add-diamond" class="action icon-action" type="button" title="Add diamond" aria-label="Add diamond">+</button>
+        <button id="remove-diamond" class="action icon-action" type="button" title="Remove diamond" aria-label="Remove diamond">-</button>
+        <button id="reset-all" class="action icon-action reset-icon" type="button" title="Reset edges" aria-label="Reset edges">x</button>
+      </aside>
+    </section>
+  </main>
+
+  <script>
+    const palette = [
+      { id: "black", label: "Black", color: "#1d1d1d" },
+      { id: "red", label: "Red", color: "#d1493f" },
+      { id: "blue", label: "Blue", color: "#275dad" },
+      { id: "green", label: "Green", color: "#2d7d46" },
+      { id: "gold", label: "Gold", color: "#c7871f" },
+      { id: "purple", label: "Purple", color: "#7d4ec7" },
+      { id: "teal", label: "Teal", color: "#1f8a8a" }
+    ];
+
+    const MODULE_SPACING = 480;
+    const TERMINAL_GAP = 120;
+    const GRAPH_Y_MIN = -340;
+    const GRAPH_HEIGHT = 680;
+    const nonBlackPalette = palette.filter((entry) => entry.id !== "black");
+
+    const graphCard = document.querySelector(".graph-card");
+    const svg = document.getElementById("graph");
+    const edgeMenu = document.getElementById("edge-menu");
+    const status = document.getElementById("status");
+    const removeDiamondButton = document.getElementById("remove-diamond");
+
+    let diamondCount = 1;
+    let nodes = [];
+    let edges = [];
+    let nodeMap = {};
+    let edgeMap = {};
+    let edgesByNode = {};
+    let colorState = {};
+    let edgeElements = new Map();
+    let nodeElements = new Map();
+    let openEdgeId = null;
+    let highlightedNodeId = null;
+
+    function setStatus(message) {
+      status.textContent = message;
+    }
+
+    function buildModuleNodes(index, centerX) {
+      return [
+        { id: `M${index}-IL1`, x: centerX - 120, y: -120 },
+        { id: `M${index}-IL0`, x: centerX - 120, y: 0 },
+        { id: `M${index}-IL-1`, x: centerX - 120, y: 120 },
+        { id: `M${index}-IR1`, x: centerX + 120, y: -120 },
+        { id: `M${index}-IR0`, x: centerX + 120, y: 0 },
+        { id: `M${index}-IR-1`, x: centerX + 120, y: 120 },
+        { id: `M${index}-C2`, x: centerX, y: -240 },
+        { id: `M${index}-C1`, x: centerX, y: -120 },
+        { id: `M${index}-C0`, x: centerX, y: 0 },
+        { id: `M${index}-C-1`, x: centerX, y: 120 },
+        { id: `M${index}-C-2`, x: centerX, y: 240 }
+      ];
+    }
+
+    function buildModuleEdges(index, leftId, rightId) {
+      const innerLeft = [`M${index}-IL1`, `M${index}-IL0`, `M${index}-IL-1`];
+      const innerRight = [`M${index}-IR1`, `M${index}-IR0`, `M${index}-IR-1`];
+      const centerColumn = [`M${index}-C2`, `M${index}-C1`, `M${index}-C0`, `M${index}-C-1`, `M${index}-C-2`];
+      const moduleEdges = [];
+
+      innerLeft.forEach((target) => {
+        moduleEdges.push({ id: `${leftId}:${target}`, from: leftId, to: target });
+      });
+
+      innerRight.forEach((target) => {
+        moduleEdges.push({ id: `${rightId}:${target}`, from: rightId, to: target });
+      });
+
+      innerLeft.forEach((left) => {
+        centerColumn.forEach((center) => {
+          moduleEdges.push({ id: `${left}:${center}`, from: left, to: center });
+        });
+      });
+
+      innerRight.forEach((right) => {
+        centerColumn.forEach((center) => {
+          moduleEdges.push({ id: `${right}:${center}`, from: right, to: center });
+        });
+      });
+
+      return moduleEdges;
+    }
+
+    function generateGraphData(count) {
+      const nextNodes = [];
+      const nextEdges = [];
+      const sharedCornerIds = [];
+
+      for (let index = 0; index <= count; index += 1) {
+        const cornerId = `S${index}`;
+        sharedCornerIds.push(cornerId);
+        nextNodes.push({ id: cornerId, x: -240 + index * MODULE_SPACING, y: 0 });
+      }
+
+      for (let index = 0; index < count; index += 1) {
+        const centerX = index * MODULE_SPACING;
+        const leftId = sharedCornerIds[index];
+        const rightId = sharedCornerIds[index + 1];
+        nextNodes.push(...buildModuleNodes(index, centerX));
+        nextEdges.push(...buildModuleEdges(index, leftId, rightId));
+      }
+
+      const leftAnchorX = nextNodes.find((node) => node.id === "S0").x;
+      const rightAnchorX = nextNodes.find((node) => node.id === `S${count}`).x;
+      nextNodes.push({ id: "START", x: leftAnchorX - TERMINAL_GAP, y: 0 });
+      nextNodes.push({ id: "END", x: rightAnchorX + TERMINAL_GAP, y: 0 });
+      nextEdges.push({ id: "START:S0", from: "START", to: "S0", dashed: true });
+      nextEdges.push({ id: `S${count}:END`, from: `S${count}`, to: "END", dashed: true });
+
+      const nextNodeMap = Object.fromEntries(nextNodes.map((node) => [node.id, node]));
+      const nextEdgeMap = Object.fromEntries(nextEdges.map((edge) => [edge.id, edge]));
+      const nextEdgesByNode = {};
+
+      nextEdges.forEach((edge) => {
+        if (!nextEdgesByNode[edge.from]) {
+          nextEdgesByNode[edge.from] = [];
+        }
+        if (!nextEdgesByNode[edge.to]) {
+          nextEdgesByNode[edge.to] = [];
+        }
+        nextEdgesByNode[edge.from].push(edge.id);
+        nextEdgesByNode[edge.to].push(edge.id);
+      });
+
+      return {
+        nodes: nextNodes,
+        edges: nextEdges,
+        nodeMap: nextNodeMap,
+        edgeMap: nextEdgeMap,
+        edgesByNode: nextEdgesByNode
+      };
+    }
+
+    function updateCounts() {
+      return;
+    }
+
+    function updateDiamondCounter() {
+      removeDiamondButton.disabled = diamondCount === 1;
+    }
+
+    function findColorConflict(edgeId, colorId, state = colorState) {
+      if (colorId === "black") {
+        return null;
+      }
+
+      const edge = edgeMap[edgeId];
+      const neighbors = [...(edgesByNode[edge.from] || []), ...(edgesByNode[edge.to] || [])];
+      return neighbors.find((neighborId) => neighborId !== edgeId && state[neighborId] === colorId) || null;
+    }
+
+    function availableColorsForEdge(edgeId, state = colorState) {
+      return nonBlackPalette.filter((entry) => !findColorConflict(edgeId, entry.id, state));
+    }
+
+    function applyEdgeColor(edgeId, colorId, { skipCountUpdate = false } = {}) {
+      colorState[edgeId] = colorId;
+      const edge = edgeElements.get(edgeId);
+      if (edge) {
+        edge.setAttribute("stroke", palette.find((item) => item.id === colorId).color);
+        edge.classList.toggle("selected", colorId !== "black");
+      }
+      if (!skipCountUpdate) {
+        updateCounts();
+      }
+    }
+
+    function updateNodeHighlight() {
+      edges.forEach((edge) => {
+        const line = edgeElements.get(edge.id);
+        if (!line) {
+          return;
+        }
+        const incident = highlightedNodeId && (edge.from === highlightedNodeId || edge.to === highlightedNodeId);
+        line.classList.toggle("node-highlight", Boolean(incident));
+        line.classList.toggle("node-dimmed", Boolean(highlightedNodeId) && !incident);
+      });
+
+      nodes.forEach((node) => {
+        const group = nodeElements.get(node.id);
+        if (!group) {
+          return;
+        }
+        const active = node.id === highlightedNodeId;
+        group.halo.classList.toggle("active-node", active);
+        group.circle.classList.toggle("active-node", active);
+      });
+    }
+
+    function clearNodeHighlight({ silent = false } = {}) {
+      if (!highlightedNodeId) {
+        return;
+      }
+      highlightedNodeId = null;
+      updateNodeHighlight();
+      if (!silent) {
+        setStatus("Cleared node highlight.");
+      }
+    }
+
+    function toggleNodeHighlight(nodeId) {
+      highlightedNodeId = highlightedNodeId === nodeId ? null : nodeId;
+      updateNodeHighlight();
+      if (highlightedNodeId) {
+        setStatus(`Highlighted edges incident to ${highlightedNodeId}.`);
+      } else {
+        setStatus("Cleared node highlight.");
+      }
+    }
+
+    function hideEdgeMenu() {
+      edgeMenu.hidden = true;
+      edgeMenu.innerHTML = "";
+      openEdgeId = null;
+    }
+
+    function positionEdgeMenu(edgeId) {
+      const line = edgeElements.get(edgeId);
+      if (!line) {
+        return;
+      }
+      const lineBox = line.getBoundingClientRect();
+      const cardBox = graphCard.getBoundingClientRect();
+      const left = lineBox.left + lineBox.width / 2 - cardBox.left;
+      const top = lineBox.top + lineBox.height / 2 - cardBox.top;
+      const menuWidth = edgeMenu.offsetWidth;
+      const menuHeight = edgeMenu.offsetHeight;
+      const paddedLeft = Math.max(12, Math.min(left - menuWidth / 2, cardBox.width - menuWidth - 12));
+      const paddedTop = Math.max(12, Math.min(top - menuHeight - 14, cardBox.height - menuHeight - 12));
+      edgeMenu.style.left = `${paddedLeft}px`;
+      edgeMenu.style.top = `${paddedTop}px`;
+    }
+
+    function showEdgeMenu(edgeId) {
+      const currentColor = colorState[edgeId];
+      const available = availableColorsForEdge(edgeId);
+      edgeMenu.innerHTML = "";
+
+      const title = document.createElement("div");
+      title.className = "edge-menu-title";
+      title.textContent = edgeId;
+      edgeMenu.appendChild(title);
+
+      if (available.length > 0) {
+        const grid = document.createElement("div");
+        grid.className = "edge-menu-grid";
+
+        available.forEach((entry) => {
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className = "color-chip";
+          button.innerHTML = `<span class="color-chip-dot" style="background:${entry.color}"></span>${entry.label}`;
+          button.addEventListener("click", (event) => {
+            event.stopPropagation();
+            applyEdgeColor(edgeId, entry.id);
+            hideEdgeMenu();
+            setStatus(`Colored ${edgeId} with ${entry.label}.`);
+          });
+          grid.appendChild(button);
+        });
+
+        edgeMenu.appendChild(grid);
+      } else {
+        const empty = document.createElement("div");
+        empty.className = "edge-menu-empty";
+        empty.textContent = "No colours available.";
+        edgeMenu.appendChild(empty);
+      }
+
+      if (currentColor !== "black") {
+        const blackButton = document.createElement("button");
+        blackButton.type = "button";
+        blackButton.className = "action";
+        blackButton.textContent = "Set black";
+        blackButton.addEventListener("click", (event) => {
+          event.stopPropagation();
+          applyEdgeColor(edgeId, "black");
+          hideEdgeMenu();
+          setStatus(`Set ${edgeId} to black.`);
+        });
+        edgeMenu.appendChild(blackButton);
+      }
+
+      edgeMenu.hidden = false;
+      openEdgeId = edgeId;
+      positionEdgeMenu(edgeId);
+    }
+
+    function drawGraph() {
+      const edgeGroup = document.createElementNS("http://www.w3.org/2000/svg", "g");
+      const nodeGroup = document.createElementNS("http://www.w3.org/2000/svg", "g");
+
+      nodes.forEach((node) => {
+        nodeMap[node.id] = node;
+      });
+
+      edges.forEach((edge) => {
+        const from = nodeMap[edge.from];
+        const to = nodeMap[edge.to];
+        const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+        line.setAttribute("x1", from.x);
+        line.setAttribute("y1", from.y);
+        line.setAttribute("x2", to.x);
+        line.setAttribute("y2", to.y);
+        line.setAttribute("stroke", palette.find((entry) => entry.id === colorState[edge.id]).color);
+        line.setAttribute("class", "edge");
+        if (edge.dashed) {
+          line.setAttribute("stroke-dasharray", "7 7");
+        }
+        line.classList.toggle("selected", colorState[edge.id] !== "black");
+        line.setAttribute("data-edge-id", edge.id);
+        const title = document.createElementNS("http://www.w3.org/2000/svg", "title");
+        title.textContent = edge.id;
+        line.appendChild(title);
+        line.addEventListener("click", (event) => {
+          event.stopPropagation();
+          showEdgeMenu(edge.id);
+        });
+        edgeElements.set(edge.id, line);
+        edgeGroup.appendChild(line);
+      });
+
+      nodes.forEach((node) => {
+        const halo = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+        halo.setAttribute("cx", node.x);
+        halo.setAttribute("cy", node.y);
+        halo.setAttribute("r", "11");
+        halo.setAttribute("class", "node-ring");
+        nodeGroup.appendChild(halo);
+
+        const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+        circle.setAttribute("cx", node.x);
+        circle.setAttribute("cy", node.y);
+        circle.setAttribute("r", "7");
+        circle.setAttribute("class", "node");
+        [halo, circle].forEach((element) => {
+          element.addEventListener("click", (event) => {
+            event.stopPropagation();
+            toggleNodeHighlight(node.id);
+          });
+        });
+        nodeElements.set(node.id, { halo, circle });
+        nodeGroup.appendChild(circle);
+      });
+
+      svg.append(edgeGroup, nodeGroup);
+      updateNodeHighlight();
+    }
+
+    function rebuildGraph(previousState = colorState) {
+      hideEdgeMenu();
+      const graphData = generateGraphData(diamondCount);
+      nodes = graphData.nodes;
+      edges = graphData.edges;
+      nodeMap = graphData.nodeMap;
+      edgeMap = graphData.edgeMap;
+      edgesByNode = graphData.edgesByNode;
+      colorState = Object.fromEntries(edges.map((edge) => [edge.id, previousState[edge.id] ?? "black"]));
+      edgeElements = new Map();
+      nodeElements = new Map();
+
+      if (highlightedNodeId && !nodeMap[highlightedNodeId]) {
+        highlightedNodeId = null;
+      }
+
+      const minX = Math.min(...nodes.map((node) => node.x)) - 80;
+      const maxX = Math.max(...nodes.map((node) => node.x)) + 80;
+      svg.setAttribute("viewBox", `${minX} ${GRAPH_Y_MIN} ${maxX - minX} ${GRAPH_HEIGHT}`);
+      svg.innerHTML = `
+        <title id="title">Interactive graph for edge coloring</title>
+        <desc id="desc">Click an edge to open a menu of available colors.</desc>
+      `;
+      drawGraph();
+      updateCounts();
+      updateDiamondCounter();
+    }
+
+    document.getElementById("add-diamond").addEventListener("click", () => {
+      diamondCount += 1;
+      rebuildGraph(colorState);
+      setStatus(`Added diamond ${diamondCount}.`);
+    });
+
+    removeDiamondButton.addEventListener("click", () => {
+      if (diamondCount === 1) {
+        return;
+      }
+      diamondCount -= 1;
+      rebuildGraph(colorState);
+      setStatus(`Removed a diamond. ${diamondCount} remaining.`);
+    });
+
+    document.getElementById("reset-all").addEventListener("click", () => {
+      hideEdgeMenu();
+      Object.keys(colorState).forEach((edgeId) => applyEdgeColor(edgeId, "black", { skipCountUpdate: true }));
+      updateCounts();
+      setStatus("All edges reset.");
+    });
+
+    edgeMenu.addEventListener("click", (event) => event.stopPropagation());
+    document.addEventListener("click", () => {
+      hideEdgeMenu();
+      clearNodeHighlight({ silent: true });
+    });
+    window.addEventListener("resize", () => {
+      if (openEdgeId) {
+        positionEdgeMenu(openEdgeId);
+      }
+    });
+
+    rebuildGraph();
+  </script>
+</body>
+</html>
